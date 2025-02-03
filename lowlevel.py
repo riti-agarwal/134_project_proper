@@ -108,7 +108,7 @@ class DemoNode(Node):
         self.intermediate_home = [self.pcmd[0], 0.0, self.pcmd[2]]
         self.home = [np.pi/2, 0.0, np.pi/2]
 
-        self.publish_status()
+        # self.publish_status()
 
 
     def publish_status(self, collision=False):
@@ -217,7 +217,7 @@ class DemoNode(Node):
         if self.detect_contact_torque_only():
             self.publish_status(collision=True) 
             # self.segments.clear() 
-            self.abort = True  
+            # self.abort = True  
             return
 
         # If trajectory is complete OR an abort command is received, stop motion
