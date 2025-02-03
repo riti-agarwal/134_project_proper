@@ -113,7 +113,7 @@ class DemoNode(Node):
 
     def publish_status(self, collision=False):
         msg = ExecutionStatus()
-        msg.ready = not collision  # Only "ready" if no collision
+        msg.ready = len(self.segments) == 0
         msg.collision = collision
         self.ready_pub.publish(msg)
         if collision:
@@ -216,7 +216,7 @@ class DemoNode(Node):
 
         if self.detect_contact_torque_only():
             self.publish_status(collision=True) 
-            self.segments.clear() 
+            # self.segments.clear() 
             self.abort = True  
             return
 
@@ -226,7 +226,7 @@ class DemoNode(Node):
             self.abort = False
 
             # If no new segments exist, publish "ready" and stay still
-            if not self.segments:
+            if len(self.segments) == 0:
                 self.publish_status()  
 
         # If "abort" is set OR there are new segments to process, switch immediately
