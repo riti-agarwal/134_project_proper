@@ -81,6 +81,7 @@ class DemoNode(Node):
         self.vcmd = np.zeros_like(self.pcmd)
 
         self.contact_threshold_effort = 1.5
+        self.effort = self.gravity(self.actpos)
 
         # subscriber to /spline_segment
         self.splinesub = self.create_subscription(SplineSegment, '/spline_segment', self.recvspline, 10)
@@ -107,14 +108,18 @@ class DemoNode(Node):
         self.intermediate_home = [self.pcmd[0], 0.0, self.pcmd[2]]
         self.home = [np.pi/2, 0.0, np.pi/2]
 
-        self.publish_ready_status()
+        self.publish_status()
 
 
-    def publish_ready_status(self):
+    def publish_status(self, collision=False):
         msg = ExecutionStatus()
-        msg.ready = True
+        msg.ready = not collision  # Only "ready" if no collision
+        msg.collision = collision
         self.ready_pub.publish(msg)
-        self.get_logger().info("Low-level node is ready for new trajectory.")
+        if collision:
+            self.get_logger().warn("Collision detected! Sending alert to brain.")
+        else:
+            self.get_logger().info("Low-level node is ready for new trajectory.")
 
     def gravity(self, q):
         shoulder = q[1]
@@ -165,7 +170,16 @@ class DemoNode(Node):
         elif msg.command == "replace":
             self.get_logger().info("Replacing current trajectory!")
             self.segments = [Segment(s.qf, s.vf, s.t_move) for s in msg.new_segments]
-            self.abort = True  
+            self.abort = True 
+
+    def detect_contact_torque_only(self):
+        if not hasattr(self, 'acteff'):
+            return False
+        for i, eff in enumerate(self.effort):
+            if abs(self.acteff[i] - eff) > self.contact_threshold_effort:
+                self.get_logger().warn(f"[Collision Detected] Torque {self.acteff[i]:.3f} exceeds threshold {self.contact_threshold_effort:.3f}")
+                return True
+        return False
 
     def create_test_segment(self, qf, vf, Tmove):
         return Segment(qf, vf, Tmove)
@@ -200,6 +214,12 @@ class DemoNode(Node):
     def update(self):
         t = self.now()
 
+        if self.detect_contact_torque_only():
+            self.publish_ready_status(collision=True) 
+            self.segments.clear() 
+            self.abort = True  
+            return
+
         # If trajectory is complete OR an abort command is received, stop motion
         if (self.spline and (t - self.spline.t0 > self.spline.T)) or self.abort:
             self.spline = None
@@ -207,8 +227,7 @@ class DemoNode(Node):
 
             # If no new segments exist, publish "ready" and stay still
             if not self.segments:
-                self.publish_ready_status()
-                return  # Stop further processing in this cycle
+                self.publish_ready_status()  
 
         # If "abort" is set OR there are new segments to process, switch immediately
         if self.abort or (not self.spline and len(self.segments) > 0):
@@ -223,7 +242,8 @@ class DemoNode(Node):
             self.vcmd = [0.0 for _ in self.vcmd]  # Ensure stopped velocity
 
         self.tcmd = t
-        self.sendcmd(self.pcmd, self.vcmd, self.gravity(self.actpos))
+        self.effort = self.gravity(self.actpos)
+        self.sendcmd(self.pcmd, self.vcmd, self.effort)
 
 
 
