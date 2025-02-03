@@ -215,7 +215,7 @@ class DemoNode(Node):
         t = self.now()
 
         if self.detect_contact_torque_only():
-            self.publish_ready_status(collision=True) 
+            self.publish_status(collision=True) 
             self.segments.clear() 
             self.abort = True  
             return
@@ -227,7 +227,7 @@ class DemoNode(Node):
 
             # If no new segments exist, publish "ready" and stay still
             if not self.segments:
-                self.publish_ready_status()  
+                self.publish_status()  
 
         # If "abort" is set OR there are new segments to process, switch immediately
         if self.abort or (not self.spline and len(self.segments) > 0):
