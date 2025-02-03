@@ -254,14 +254,13 @@ class BrainNode(Node):
         self.get_logger().info("Brain Node Initialized and Listening to detected_objects")
 
     def recv_status(self, msg):
-        self.ready = msg.ready
-        if self.ready:
-            self.get_logger().info("Received 'ready' from low-level. Processing next detections.")
-
         if msg.collision:
-            self.get_logger().warn("Collision detected! Sending 'go to home' replacement.")
-            self.send_replace_command([np.pi/2, 0.0, self.actpos[2]])
-            self.send_replace_command(self.home_position)
+            self.get_logger().warn("Collision detected! Replacing trajectory with go-home command.")
+            self.send_replace_command([[np.pi/2, 0.0, self.actpos(0)], self.home_position])
+        else:
+            self.ready = msg.ready
+            if self.ready:
+                self.get_logger().info("Received 'ready' from low-level.")
 
     def grabfbk(self):
         def cb(fbkmsg):
@@ -278,9 +277,7 @@ class BrainNode(Node):
     def recv_objects(self, msg):
         if not self.ready: 
             return
-
-        self.ready = False
-        
+                
         if not msg.objects:
             self.get_logger().info("No objects detected.")
             return
@@ -291,6 +288,8 @@ class BrainNode(Node):
         for obj in objects_sorted:
             self.visit_object(obj)
             self.go_to_home() 
+
+        self.ready = False
         
         # self.send_once = True 
 
@@ -378,18 +377,19 @@ class BrainNode(Node):
         self.control_pub.publish(msg)
         self.get_logger().info("Sent halt command to low-level node.")
 
-    def send_replace_command(self, qf):
-        segment = SplineSegment()
-        segment.qf = qf
-        segment.vf = [0.0, 0.0, 0.0]
-        segment.t_move = 4.0  
-
+    def send_replace_command(self, qf_list):
         msg = ControlCommand()
         msg.command = "replace"
-        msg.new_segments.append(segment)
+
+        for qf in qf_list:
+            segment = SplineSegment()
+            segment.qf = qf
+            segment.vf = [0.0, 0.0, 0.0]
+            segment.t_move = 4.0  
+            msg.new_segments.append(segment)
 
         self.control_pub.publish(msg)
-        self.get_logger().info(f"Sent replace command to position {qf}")
+        self.get_logger().info(f"Sent replace command with {len(qf_list)} waypoints.")
 
 
 def main(args=None):
