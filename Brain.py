@@ -258,6 +258,11 @@ class BrainNode(Node):
         if self.ready:
             self.get_logger().info("Received 'ready' from low-level. Processing next detections.")
 
+        if msg.collision:
+            self.get_logger().warn("Collision detected! Sending 'go to home' replacement.")
+            self.send_replace_command([np.pi/2, 0.0, self.actpos[2]])
+            self.send_replace_command(self.home_position)
+
     def grabfbk(self):
         def cb(fbkmsg):
             self.grabpos   = list(fbkmsg.position)
@@ -287,7 +292,7 @@ class BrainNode(Node):
             self.visit_object(obj)
             self.go_to_home() 
         
-        self.send_once = True 
+        # self.send_once = True 
 
     def go_to_home(self):
         home_msg1 = SplineSegment()
@@ -373,12 +378,18 @@ class BrainNode(Node):
         self.control_pub.publish(msg)
         self.get_logger().info("Sent halt command to low-level node.")
 
-    def send_replace_command(self, new_segments):
+    def send_replace_command(self, qf):
+        segment = SplineSegment()
+        segment.qf = qf
+        segment.vf = [0.0, 0.0, 0.0]
+        segment.t_move = 4.0  
+
         msg = ControlCommand()
         msg.command = "replace"
-        msg.new_segments = new_segments 
+        msg.new_segments.append(segment)
+
         self.control_pub.publish(msg)
-        self.get_logger().info("Sent replace command with new trajectory.")
+        self.get_logger().info(f"Sent replace command to position {qf}")
 
 
 def main(args=None):
